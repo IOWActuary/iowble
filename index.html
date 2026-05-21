@@ -2,9 +2,9 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<title>Iowble — Guess the Small Iowa Town</title>
+<title>Iowble — Guess the Iowa Town</title>
 <style>
-  body { font-family: system-ui, sans-serif; max-width: 720px; margin: 1em auto; padding: 0 1em; background:#f7f5ee; color:#222; }
+  body { font-family: system-ui, sans-serif; max-width: 760px; margin: 1em auto; padding: 0 1em; background:#f7f5ee; color:#222; }
   h1 { text-align:center; margin-bottom:0; }
   .sub { text-align:center; color:#555; margin-top:.25em; }
   .row { display:flex; gap:.5em; margin:1em 0; }
@@ -18,24 +18,39 @@
   datalist { display:none; }
   .meta { font-size:.85em; color:#666; text-align:center; }
   .footer { margin-top:2em; font-size:.8em; color:#888; text-align:center; }
+  #map { width: 100%; height: auto; background:#eef3ec; border-radius:6px; border:1px solid #ccc; display:block; }
+  .map-wrap { margin: 0.5em 0; }
+  .legend { font-size:.8em; color:#555; text-align:center; margin-top:.25em; }
 </style>
 </head>
 <body>
 <h1>Iowble</h1>
-<p class="sub">Guess the secret Iowa town (pop. &lt; 5,000)</p>
+<p class="sub">Guess the secret Iowa town (target population &lt; 5,000) — any Iowa town is a valid guess.</p>
+
+<div class="map-wrap">
+  <svg id="map" viewBox="0 0 500 300" preserveAspectRatio="xMidYMid meet"></svg>
+  <div class="legend">Gray dots: all towns in dataset · Colored pins: your guesses · ⭐ closest so far</div>
+</div>
+
 <div class="row">
-  <input id="guess" list="towns" placeholder="Type an Iowa town…" autocomplete="off">
+  <input id="guess" list="towns" placeholder="Type any Iowa town…" autocomplete="off">
   <button id="go">Guess</button>
 </div>
 <datalist id="towns"></datalist>
+
 <div id="status" class="meta">Guesses: 0</div>
 <div id="closest" class="closest"></div>
 <div id="result"></div>
 <div id="history"></div>
+
 <button id="reset" style="background:#999;margin-top:1em;">New Game</button>
-<p class="footer">Inspired by Globle. Distances are great-circle miles.</p>
+
+<p class="footer">Inspired by Globle. Distances are great-circle miles. Target is always a small town (&lt; 5,000 pop).</p>
+
 <script>
+// [name, lat, lon, pop]
 const TOWNS = [
+// Small (<5000) - target eligible
 ["Adair",41.5028,-94.6411,781],["Akron",42.8275,-96.5575,1475],["Albia",41.0264,-92.8057,3766],
 ["Alden",42.5208,-93.3719,776],["Allerton",40.7064,-93.3680,502],["Alta",42.6722,-95.2919,1883],
 ["Anita",41.4444,-94.7644,933],["Anthon",42.3856,-95.8675,565],["Aplington",42.5847,-92.8847,1128],
@@ -81,17 +96,145 @@ const TOWNS = [
 ["Walnut",41.4775,-95.2192,778],["Wapello",41.1808,-91.1858,2067],["Waukon",43.2706,-91.4753,3791],
 ["Wellman",41.4658,-91.8419,1488],["West Branch",41.6711,-91.3469,2509],["West Liberty",41.5719,-91.2625,3826],
 ["West Union",42.9636,-91.8089,2371],["What Cheer",41.4022,-92.3553,612],["Williamsburg",41.6628,-92.0086,3267],
-["Wilton",41.5878,-91.0167,2802],["Woodbine",41.7372,-95.7039,1583]
+["Wilton",41.5878,-91.0167,2802],["Woodbine",41.7372,-95.7039,1583],
+// Larger (>=5000) - guessable only
+["Adel",41.6111,-94.0205,5800],["Algona",43.0697,-94.2336,5487],["Altoona",41.6447,-93.4647,21219],
+["Amana",41.8019,-91.8714,442],["Ames",42.0347,-93.6200,66427],
+["Anamosa",42.1083,-91.2867,5550],["Ankeny",41.7297,-93.6058,67887],["Asbury",42.5111,-90.7475,5876],
+["Atlantic",41.4036,-95.0136,6788],["Bettendorf",41.5236,-90.5161,39102],
+["Boone",42.0594,-93.8800,12460],["Burlington",40.8075,-91.1128,23982],["Camanche",41.7889,-90.2536,4495],
+["Carroll",42.0658,-94.8669,10103],["Carter Lake",41.2922,-95.9136,3724],["Cedar Falls",42.5278,-92.4453,40713],
+["Cedar Rapids",41.9778,-91.6656,137710],["Centerville",40.7339,-92.8743,5390],
+["Charles City",43.0664,-92.6741,7396],["Clarinda",40.7397,-95.0361,5369],["Clear Lake",43.1378,-93.3786,7687],
+["Clinton",41.8444,-90.1886,24469],["Clive",41.6033,-93.7244,18244],["Coralville",41.6764,-91.5803,22318],
+["Council Bluffs",41.2619,-95.8608,62799],["Creston",41.0586,-94.3608,7589],
+["Davenport",41.5236,-90.5776,101724],["Decorah",43.3033,-91.7858,7587],["Denison",42.0192,-95.3553,8373],
+["Des Moines",41.5868,-93.6250,214133],["De Witt",41.8233,-90.5379,5322],
+["Dubuque",42.5006,-90.6647,59667],["Dyersville",42.4847,-91.1242,4477],
+["Eldridge",41.6589,-90.5828,6726],["Estherville",43.4019,-94.8311,5904],["Evansdale",42.4747,-92.2872,4720],
+["Fairfield",41.0086,-91.9626,9416],["Fort Dodge",42.4975,-94.1681,24871],["Fort Madison",40.6297,-91.3151,10270],
+["Glenwood",41.0461,-95.7400,5269],["Grimes",41.6889,-93.7903,15392],["Grinnell",41.7458,-92.7225,9564],
+["Harlan",41.6539,-95.3258,5106],["Hiawatha",42.0344,-91.6822,7327],["Independence",42.4711,-91.8911,5966],
+["Indianola",41.3583,-93.5572,15833],["Iowa City",41.6611,-91.5302,74828],["Iowa Falls",42.5208,-93.2519,5111],
+["Johnston",41.6753,-93.6975,24064],["Keokuk",40.3972,-91.3849,9900],["Knoxville",41.3208,-93.0989,7468],
+["Le Mars",42.7950,-96.1661,10571],["Manchester",42.4847,-91.4555,5179],["Maquoketa",42.0683,-90.6658,6005],
+["Marion",42.0344,-91.5970,41535],["Marshalltown",42.0494,-92.9080,27591],["Mason City",43.1536,-93.2010,27338],
+["Muscatine",41.4244,-91.0431,23797],["Nevada",42.0214,-93.4525,6798],["Newton",41.6997,-93.0480,15760],
+["North Liberty",41.7464,-91.5961,20479],["Norwalk",41.4781,-93.6783,12799],["Oelwein",42.6736,-91.9135,5957],
+["Orange City",43.0072,-96.0586,6266],["Osceola",41.0353,-93.7656,5159],
+["Oskaloosa",41.2964,-92.6444,11558],["Ottumwa",41.0203,-92.4119,25529],["Pella",41.4081,-92.9169,10464],
+["Perry",41.8378,-94.1097,7836],["Pleasant Hill",41.5836,-93.5169,11460],["Polk City",41.7706,-93.7136,5552],
+["Red Oak",41.0103,-95.2256,5639],["Sergeant Bluff",42.4078,-96.3611,5081],["Sheldon",43.1817,-95.8561,5188],
+["Shenandoah",40.7656,-95.3722,5021],["Sioux Center",43.0786,-96.1758,8259],
+["Sioux City",42.4999,-96.4003,85797],["Spencer",43.1414,-95.1442,11196],["Spirit Lake",43.4222,-95.1022,5043],
+["Storm Lake",42.6411,-95.2097,11269],["Story City",42.1869,-93.5953,3550],["Urbandale",41.6266,-93.7122,45580],
+["Vinton",42.1689,-92.0244,5102],["Washington",41.2978,-91.6936,7344],["Waterloo",42.4928,-92.3426,67314],
+["Waukee",41.6086,-93.8869,30490],["Waverly",42.7261,-92.4753,10394],["Webster City",42.4694,-93.8194,7825],
+["West Des Moines",41.5772,-93.7113,68723],["Winterset",41.3306,-94.0136,5353]
 ];
+
 const $ = id => document.getElementById(id);
 const dl = $("towns");
 TOWNS.forEach(t => { const o = document.createElement("option"); o.value = t[0]; dl.appendChild(o); });
+const SMALL = TOWNS.filter(t => t[3] < 5000);
+
 let target = null, guesses = [], closest = null;
-function newGame() {
-  target = TOWNS[Math.floor(Math.random() * TOWNS.length)];
-  guesses = []; closest = null;
-  render(); $("guess").value = ""; $("guess").focus();
+
+const BBOX = { latN: 43.55, latS: 40.35, lonW: -96.70, lonE: -90.10 };
+const MAP_W = 500, MAP_H = 300;
+function project(lat, lon) {
+  const x = (lon - BBOX.lonW) / (BBOX.lonE - BBOX.lonW) * MAP_W;
+  const y = (BBOX.latN - lat) / (BBOX.latN - BBOX.latS) * MAP_H;
+  return [x, y];
 }
+
+function drawBaseMap() {
+  const svg = $("map");
+  // Iowa state outline as a simplified polygon (clockwise from NW corner)
+  const outline = [
+    [43.501,-96.639],[43.501,-91.220],[43.300,-91.218],[43.200,-91.100],
+    [43.000,-91.155],[42.860,-91.155],[42.700,-91.090],[42.500,-90.700],
+    [42.400,-90.660],[42.300,-90.430],[42.155,-90.340],[42.030,-90.150],
+    [41.780,-90.150],[41.600,-90.340],[41.460,-90.420],[41.420,-90.700],
+    [41.180,-91.070],[41.000,-91.090],[40.800,-91.110],[40.638,-91.260],
+    [40.500,-91.420],[40.378,-91.380],[40.380,-95.770],[40.580,-95.770],
+    [40.700,-95.820],[40.900,-95.800],[41.180,-95.880],[41.400,-95.940],
+    [41.560,-95.880],[41.700,-95.870],[41.910,-95.860],[42.100,-96.080],
+    [42.270,-96.350],[42.490,-96.410],[42.700,-96.540],[42.840,-96.520],
+    [43.000,-96.470],[43.200,-96.580],[43.501,-96.639]
+  ];
+  const pts = outline.map(([la,lo]) => project(la,lo).join(",")).join(" ");
+  const ns = "http://www.w3.org/2000/svg";
+  // background polygon
+  const poly = document.createElementNS(ns, "polygon");
+  poly.setAttribute("points", pts);
+  poly.setAttribute("fill", "#f3efe0");
+  poly.setAttribute("stroke", "#888");
+  poly.setAttribute("stroke-width", "1");
+  svg.appendChild(poly);
+  // all town dots
+  for (const t of TOWNS) {
+    const [x,y] = project(t[1], t[2]);
+    const c = document.createElementNS(ns, "circle");
+    c.setAttribute("cx", x); c.setAttribute("cy", y);
+    c.setAttribute("r", t[3] >= 50000 ? 3 : (t[3] >= 10000 ? 2.2 : 1.4));
+    c.setAttribute("fill", "#999");
+    c.setAttribute("opacity", "0.55");
+    svg.appendChild(c);
+  }
+}
+
+function clearMapOverlays() {
+  const svg = $("map");
+  svg.querySelectorAll("[data-overlay]").forEach(el => el.remove());
+}
+
+function colorFor(miles) {
+  const max = 350, t = Math.min(miles/max, 1);
+  let r, g, b;
+  if (t < 0.33) { const k = t/0.33; r=255; g=80+(210-80)*k; b=80; }
+  else if (t < 0.66) { const k = (t-0.33)/0.33; r=255+(160-255)*k; g=210+(220-210)*k; b=80+(120-80)*k; }
+  else { const k = (t-0.66)/0.34; r=160+(140-160)*k; g=220+(180-220)*k; b=120+(230-120)*k; }
+  return "rgb("+(r|0)+","+(g|0)+","+(b|0)+")";
+}
+
+function drawOverlays() {
+  clearMapOverlays();
+  const svg = $("map");
+  const ns = "http://www.w3.org/2000/svg";
+  for (const g of guesses) {
+    const [x,y] = project(g.town[1], g.town[2]);
+    const c = document.createElementNS(ns, "circle");
+    c.setAttribute("cx", x); c.setAttribute("cy", y);
+    c.setAttribute("r", 4.5);
+    c.setAttribute("fill", colorFor(g.dist));
+    c.setAttribute("stroke", "#222");
+    c.setAttribute("stroke-width", "0.8");
+    c.setAttribute("data-overlay", "1");
+    const title = document.createElementNS(ns,"title");
+    title.textContent = g.town[0]+" — "+g.dist.toFixed(1)+" mi "+g.dir;
+    c.appendChild(title);
+    svg.appendChild(c);
+    const lbl = document.createElementNS(ns,"text");
+    lbl.setAttribute("x", x+6); lbl.setAttribute("y", y-4);
+    lbl.setAttribute("font-size", "8"); lbl.setAttribute("fill", "#222");
+    lbl.setAttribute("data-overlay","1");
+    lbl.textContent = g.town[0];
+    svg.appendChild(lbl);
+  }
+  if (closest) {
+    const [x,y] = project(closest.town[1], closest.town[2]);
+    const star = document.createElementNS(ns, "text");
+    star.setAttribute("x", x); star.setAttribute("y", y+4);
+    star.setAttribute("font-size", "14");
+    star.setAttribute("text-anchor", "middle");
+    star.setAttribute("data-overlay", "1");
+    star.textContent = "★";
+    star.setAttribute("fill", "#d80");
+    svg.appendChild(star);
+  }
+}
+
 function distMiles(a, b) {
   const R = 3958.8, toRad = x => x * Math.PI / 180;
   const dLat = toRad(b[1]-a[1]), dLon = toRad(b[2]-a[2]);
@@ -112,25 +255,25 @@ function arrowFor(deg) {
   const i = Math.round(deg/45)%8;
   return arrows[i]+" "+dirs[i];
 }
-function colorFor(miles) {
-  const max = 350, t = Math.min(miles/max, 1);
-  let r, g, b;
-  if (t < 0.33) { const k = t/0.33; r=255; g=80+(210-80)*k; b=80; }
-  else if (t < 0.66) { const k = (t-0.33)/0.33; r=255+(160-255)*k; g=210+(220-210)*k; b=80+(120-80)*k; }
-  else { const k = (t-0.66)/0.34; r=160+(140-160)*k; g=220+(180-220)*k; b=120+(230-120)*k; }
-  return "rgb("+(r|0)+","+(g|0)+","+(b|0)+")";
+
+function newGame() {
+  target = SMALL[Math.floor(Math.random() * SMALL.length)];
+  guesses = []; closest = null;
+  render(); $("guess").value = ""; $("guess").focus();
 }
+
 function submitGuess() {
   const name = $("guess").value.trim();
   if (!name) return;
   const town = TOWNS.find(t => t[0].toLowerCase() === name.toLowerCase());
-  if (!town) { alert("\""+name+"\" isn't in the list. Try another small Iowa town."); return; }
+  if (!town) { alert("\""+name+"\" isn't in the Iowa town list. Try another."); return; }
   if (guesses.some(g => g.town[0] === town[0])) { alert("Already guessed."); return; }
   const d = distMiles(town, target), b = bearing(town, target);
   guesses.push({ town, dist: d, dir: arrowFor(b) });
   if (closest === null || d < closest.dist) closest = { town, dist: d };
   $("guess").value = ""; render();
 }
+
 function render() {
   $("status").textContent = "Guesses: " + guesses.length;
   $("closest").textContent = closest ? "Closest so far: " + closest.town[0] + " (" + closest.dist.toFixed(1) + " mi)" : "";
@@ -139,13 +282,17 @@ function render() {
     ? "<div class=\"win\">\uD83C\uDF89 You got it! The town was <b>" + target[0] + "</b> (pop. " + target[3].toLocaleString() + ") in " + guesses.length + " guess" + (guesses.length>1?"es":"") + ".</div>" : "";
   const h = guesses.slice().reverse().map(g => {
     const pct = Math.max(0, Math.min(100, 100-(g.dist/350)*100));
-    return "<div class=\"guess\" style=\"background:" + colorFor(g.dist) + "\"><span>" + g.town[0] + "</span><span>" + g.dist.toFixed(1) + " mi " + g.dir + "</span><span>" + pct.toFixed(0) + "%</span></div>";
+    return "<div class=\"guess\" style=\"background:" + colorFor(g.dist) + "\"><span>" + g.town[0] + " <small style=\"opacity:.6\">(pop "+g.town[3].toLocaleString()+")</small></span><span>" + g.dist.toFixed(1) + " mi " + g.dir + "</span><span>" + pct.toFixed(0) + "%</span></div>";
   }).join("");
   $("history").innerHTML = h;
+  drawOverlays();
 }
+
 $("go").onclick = submitGuess;
 $("guess").addEventListener("keydown", e => { if (e.key === "Enter") submitGuess(); });
 $("reset").onclick = newGame;
+
+drawBaseMap();
 newGame();
 </script>
 </body>
