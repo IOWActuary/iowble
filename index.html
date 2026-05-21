@@ -1,0 +1,152 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Iowble — Guess the Small Iowa Town</title>
+<style>
+  body { font-family: system-ui, sans-serif; max-width: 720px; margin: 1em auto; padding: 0 1em; background:#f7f5ee; color:#222; }
+  h1 { text-align:center; margin-bottom:0; }
+  .sub { text-align:center; color:#555; margin-top:.25em; }
+  .row { display:flex; gap:.5em; margin:1em 0; }
+  input, button { font-size:1em; padding:.5em; }
+  input { flex:1; }
+  button { background:#3a6; color:white; border:0; border-radius:4px; cursor:pointer; }
+  button:hover { background:#284; }
+  .guess { display:flex; justify-content:space-between; padding:.5em .75em; margin:.3em 0; border-radius:4px; color:#111; }
+  .closest { font-weight:bold; text-align:center; margin:.5em 0; }
+  .win { background:#ffd24a; padding:1em; border-radius:6px; text-align:center; font-size:1.1em; margin:1em 0; }
+  datalist { display:none; }
+  .meta { font-size:.85em; color:#666; text-align:center; }
+  .footer { margin-top:2em; font-size:.8em; color:#888; text-align:center; }
+</style>
+</head>
+<body>
+<h1>Iowble</h1>
+<p class="sub">Guess the secret Iowa town (pop. &lt; 5,000)</p>
+<div class="row">
+  <input id="guess" list="towns" placeholder="Type an Iowa town…" autocomplete="off">
+  <button id="go">Guess</button>
+</div>
+<datalist id="towns"></datalist>
+<div id="status" class="meta">Guesses: 0</div>
+<div id="closest" class="closest"></div>
+<div id="result"></div>
+<div id="history"></div>
+<button id="reset" style="background:#999;margin-top:1em;">New Game</button>
+<p class="footer">Inspired by Globle. Distances are great-circle miles.</p>
+<script>
+const TOWNS = [
+["Adair",41.5028,-94.6411,781],["Akron",42.8275,-96.5575,1475],["Albia",41.0264,-92.8057,3766],
+["Alden",42.5208,-93.3719,776],["Allerton",40.7064,-93.3680,502],["Alta",42.6722,-95.2919,1883],
+["Anita",41.4444,-94.7644,933],["Anthon",42.3856,-95.8675,565],["Aplington",42.5847,-92.8847,1128],
+["Arnolds Park",43.3650,-95.1247,1117],["Audubon",41.7197,-94.9319,2058],["Avoca",41.4769,-95.3397,1497],
+["Bedford",40.6692,-94.7236,1377],["Belle Plaine",41.8983,-92.2769,2438],["Bellevue",42.2603,-90.4242,2191],
+["Belmond",42.8453,-93.6094,2376],["Bloomfield",40.7531,-92.4147,2580],["Britt",43.0978,-93.8019,1934],
+["Brooklyn",41.7325,-92.4467,1340],["Buffalo Center",43.3933,-93.9450,837],["Calmar",43.1822,-91.8636,978],
+["Carlisle",41.5036,-93.4922,3876],["Casey",41.5108,-94.5189,392],["Cascade",42.2978,-91.0136,2363],
+["Cherokee",42.7497,-95.5519,4970],["Clarion",42.7308,-93.7325,2737],["Clearfield",40.7942,-94.4747,297],
+["Colfax",41.6792,-93.2392,2122],["Columbus Junction",41.2789,-91.3608,1899],["Conrad",42.2222,-92.8736,1108],
+["Coon Rapids",41.8717,-94.6789,1226],["Corning",40.9886,-94.7361,1602],["Corydon",40.7572,-93.3186,1474],
+["Cresco",43.3733,-92.1136,3812],["Denver",42.6708,-92.3372,1825],["Dunlap",41.8550,-95.5972,1042],
+["Dyersville",42.4847,-91.1242,4477],["Eagle Grove",42.6622,-93.8956,3534],["Earlham",41.4925,-94.1247,1450],
+["Eldon",40.9189,-92.2147,826],["Eldora",42.3603,-93.0972,2734],["Elkader",42.8542,-91.4053,1224],
+["Emmetsburg",43.1119,-94.6814,3656],["Exira",41.5847,-94.8758,786],["Fairbank",42.6378,-92.0464,1102],
+["Forest City",43.2625,-93.6386,3954],["Garner",43.1056,-93.6019,3129],["Greenfield",41.3083,-94.4608,1955],
+["Grundy Center",42.3611,-92.7681,2715],["Guthrie Center",41.6783,-94.5044,1492],["Guttenberg",42.7861,-91.0997,1853],
+["Hampton",42.7406,-93.2025,4321],["Hawarden",43.0033,-96.4856,2546],["Hudson",42.4078,-92.4544,2674],
+["Humboldt",42.7222,-94.2147,4825],["Jefferson",42.0150,-94.3786,4225],["Jewell",42.3097,-93.6394,1217],
+["Kalona",41.4856,-91.7053,2622],["Kingsley",42.5878,-95.9683,1411],["Lake City",42.2697,-94.7350,1576],
+["Lake Mills",43.4194,-93.5328,2138],["Lake View",42.3097,-95.0467,1219],["Lamoni",40.6228,-93.9319,2143],
+["Lansing",43.3633,-91.2225,938],["Laurens",42.8456,-94.8519,1153],["Le Claire",41.6011,-90.3492,4131],
+["Leon",40.7397,-93.7461,1854],["Lisbon",41.9211,-91.3805,2275],["Logan",41.6428,-95.7906,1471],
+["Manning",41.9089,-95.0664,1437],["Manson",42.5294,-94.5375,1716],["Mapleton",42.1647,-95.7917,1224],
+["Marengo",41.7975,-92.0719,2422],["Milford",43.3294,-95.1494,3194],["Missouri Valley",41.5567,-95.8919,2667],
+["Monona",43.0517,-91.3892,1499],["Monroe",41.5236,-93.1014,1832],["Monticello",42.2386,-91.1858,4039],
+["Montezuma",41.5847,-92.5283,1462],["Mount Ayr",40.7142,-94.2375,1641],["Nashua",42.9525,-92.5358,1572],
+["Neola",41.4453,-95.6175,842],["New Hampton",43.0589,-92.3175,3503],["New London",40.9272,-91.4011,1882],
+["New Sharon",41.4711,-92.6494,1267],["Northwood",43.4444,-93.2222,1881],["Oakland",41.3094,-95.4022,1573],
+["Odebolt",42.3147,-95.2522,998],["Ogden",42.0397,-94.0297,2024],["Olin",41.9967,-91.1455,712],
+["Onawa",42.0264,-96.0972,2917],["Osage",43.2842,-92.8125,3651],["Oxford",41.7239,-91.7886,868],
+["Panora",41.6914,-94.3667,1147],["Parkersburg",42.5775,-92.7889,1840],["Paullina",42.9789,-95.6850,1029],
+["Pocahontas",42.7339,-94.6675,1789],["Pomeroy",42.5519,-94.6797,614],["Postville",43.0833,-91.5680,2447],
+["Prairie City",41.5969,-93.2342,1680],["Preston",42.0508,-90.4239,1098],["Primghar",43.0833,-95.6253,826],
+["Reinbeck",42.3219,-92.5994,1751],["Remsen",42.8125,-95.9747,1646],["Riverside",41.4778,-91.5811,1098],
+["Rock Rapids",43.4275,-96.1717,2607],["Rock Valley",43.2061,-96.2942,3854],["Rockwell City",42.3933,-94.6336,1620],
+["Sac City",42.4214,-95.0011,1989],["Sanborn",43.1814,-95.6478,1318],["Shell Rock",42.7136,-92.5825,1289],
+["Sibley",43.4006,-95.7503,2798],["Sigourney",41.3344,-92.2047,2058],["Slater",41.8783,-93.6772,1721],
+["Solon",41.8092,-91.4925,3018],["Stanton",40.9858,-95.1042,689],["State Center",42.0156,-93.1644,1438],
+["Stuart",41.5028,-94.3186,1786],["Sumner",42.8483,-92.0922,2028],["Sully",41.5764,-92.8417,824],
+["Tama",41.9667,-92.5786,2680],["Tipton",41.7711,-91.1280,3221],["Toledo",41.9942,-92.5797,2341],
+["Traer",42.1922,-92.4658,1597],["Tripoli",42.8083,-92.2603,1313],["Walcott",41.5825,-90.7717,1629],
+["Walnut",41.4775,-95.2192,778],["Wapello",41.1808,-91.1858,2067],["Waukon",43.2706,-91.4753,3791],
+["Wellman",41.4658,-91.8419,1488],["West Branch",41.6711,-91.3469,2509],["West Liberty",41.5719,-91.2625,3826],
+["West Union",42.9636,-91.8089,2371],["What Cheer",41.4022,-92.3553,612],["Williamsburg",41.6628,-92.0086,3267],
+["Wilton",41.5878,-91.0167,2802],["Woodbine",41.7372,-95.7039,1583]
+];
+const $ = id => document.getElementById(id);
+const dl = $("towns");
+TOWNS.forEach(t => { const o = document.createElement("option"); o.value = t[0]; dl.appendChild(o); });
+let target = null, guesses = [], closest = null;
+function newGame() {
+  target = TOWNS[Math.floor(Math.random() * TOWNS.length)];
+  guesses = []; closest = null;
+  render(); $("guess").value = ""; $("guess").focus();
+}
+function distMiles(a, b) {
+  const R = 3958.8, toRad = x => x * Math.PI / 180;
+  const dLat = toRad(b[1]-a[1]), dLon = toRad(b[2]-a[2]);
+  const lat1 = toRad(a[1]), lat2 = toRad(b[1]);
+  const h = Math.sin(dLat/2)**2 + Math.cos(lat1)*Math.cos(lat2)*Math.sin(dLon/2)**2;
+  return 2 * R * Math.asin(Math.sqrt(h));
+}
+function bearing(a, b) {
+  const toRad = x => x * Math.PI / 180, toDeg = x => x * 180 / Math.PI;
+  const lat1 = toRad(a[1]), lat2 = toRad(b[1]), dLon = toRad(b[2]-a[2]);
+  const y = Math.sin(dLon)*Math.cos(lat2);
+  const x = Math.cos(lat1)*Math.sin(lat2)-Math.sin(lat1)*Math.cos(lat2)*Math.cos(dLon);
+  return (toDeg(Math.atan2(y,x))+360)%360;
+}
+function arrowFor(deg) {
+  const dirs = ["N","NE","E","SE","S","SW","W","NW"];
+  const arrows = ["\u2B06","\u2197","\u27A1","\u2198","\u2B07","\u2199","\u2B05","\u2196"];
+  const i = Math.round(deg/45)%8;
+  return arrows[i]+" "+dirs[i];
+}
+function colorFor(miles) {
+  const max = 350, t = Math.min(miles/max, 1);
+  let r, g, b;
+  if (t < 0.33) { const k = t/0.33; r=255; g=80+(210-80)*k; b=80; }
+  else if (t < 0.66) { const k = (t-0.33)/0.33; r=255+(160-255)*k; g=210+(220-210)*k; b=80+(120-80)*k; }
+  else { const k = (t-0.66)/0.34; r=160+(140-160)*k; g=220+(180-220)*k; b=120+(230-120)*k; }
+  return "rgb("+(r|0)+","+(g|0)+","+(b|0)+")";
+}
+function submitGuess() {
+  const name = $("guess").value.trim();
+  if (!name) return;
+  const town = TOWNS.find(t => t[0].toLowerCase() === name.toLowerCase());
+  if (!town) { alert("\""+name+"\" isn't in the list. Try another small Iowa town."); return; }
+  if (guesses.some(g => g.town[0] === town[0])) { alert("Already guessed."); return; }
+  const d = distMiles(town, target), b = bearing(town, target);
+  guesses.push({ town, dist: d, dir: arrowFor(b) });
+  if (closest === null || d < closest.dist) closest = { town, dist: d };
+  $("guess").value = ""; render();
+}
+function render() {
+  $("status").textContent = "Guesses: " + guesses.length;
+  $("closest").textContent = closest ? "Closest so far: " + closest.town[0] + " (" + closest.dist.toFixed(1) + " mi)" : "";
+  const won = guesses.some(g => g.town[0] === target[0]);
+  $("result").innerHTML = won
+    ? "<div class=\"win\">\uD83C\uDF89 You got it! The town was <b>" + target[0] + "</b> (pop. " + target[3].toLocaleString() + ") in " + guesses.length + " guess" + (guesses.length>1?"es":"") + ".</div>" : "";
+  const h = guesses.slice().reverse().map(g => {
+    const pct = Math.max(0, Math.min(100, 100-(g.dist/350)*100));
+    return "<div class=\"guess\" style=\"background:" + colorFor(g.dist) + "\"><span>" + g.town[0] + "</span><span>" + g.dist.toFixed(1) + " mi " + g.dir + "</span><span>" + pct.toFixed(0) + "%</span></div>";
+  }).join("");
+  $("history").innerHTML = h;
+}
+$("go").onclick = submitGuess;
+$("guess").addEventListener("keydown", e => { if (e.key === "Enter") submitGuess(); });
+$("reset").onclick = newGame;
+newGame();
+</script>
+</body>
+</html>
